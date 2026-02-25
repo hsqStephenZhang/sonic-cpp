@@ -1,0 +1,30 @@
+name: Test ARM
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  test_arm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install QEMU and ARM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu qemu-user qemu-user-static binfmt-support gcc-aarch64-linux-gnu g++-aarch64-linux-gnu cmake ninja-build python3 python3-pip
+      - name: Build for ARM
+        run: |
+          mkdir -p build-arm
+          cd build-arm
+          cmake .. -G Ninja -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++
+          ninja
+      - name: Run tests via QEMU
+        run: |
+          for test in build-arm/tests/*; do
+            if [ -x "$test" ]; then
+              qemu-aarch64 -L /usr/aarch64-linux-gnu "$test" || exit 1
+            fi
+          done
