@@ -44,7 +44,12 @@ sonic_force_inline uint8_t skip_space(const uint8_t *data, size_t &pos,
   if (next_nonspace) {
     size_t skip = TrailingZeroes(next_nonspace) >> 2;
     pos += skip;
-    next_nonspace >>= (skip + 1) * 4;
+    uint64_t shift = static_cast<uint64_t>(skip + 1) * 4ULL;
+    if (shift >= 64) {
+      next_nonspace = 0;
+    } else {
+      next_nonspace >>= shift;
+    }
     return data[pos++];
   }
   // fast path for single space
@@ -57,7 +62,12 @@ sonic_force_inline uint8_t skip_space(const uint8_t *data, size_t &pos,
     if (nonspace) {
       size_t skip = TrailingZeroes(nonspace) >> 2;
       pos += skip;
-      next_nonspace = nonspace >> ((skip + 1) * 4);
+      uint64_t shift = static_cast<uint64_t>(skip + 1) * 4ULL;
+      if (shift >= 64) {
+        next_nonspace = 0;
+      } else {
+        next_nonspace = nonspace >> shift;
+      }
       return data[pos++];
     } else {
       pos += 16;
