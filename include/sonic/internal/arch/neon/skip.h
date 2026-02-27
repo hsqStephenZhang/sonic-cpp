@@ -40,40 +40,58 @@ sonic_force_inline bool SkipContainer(const uint8_t *data, size_t &pos,
 
 // TODO: optimize by removing bound checking.
 sonic_force_inline uint8_t skip_space(const uint8_t *data, size_t &pos,
-                                      size_t &, uint64_t &next_nonspace) {
-  if (next_nonspace) {
-    size_t skip = TrailingZeroes(next_nonspace) >> 2;
-    pos += skip;
-    uint64_t shift = static_cast<uint64_t>(skip + 1) * 4ULL;
-    if (shift >= 64) {
-      next_nonspace = 0;
-    } else {
-      next_nonspace >>= shift;
-    }
-    return data[pos++];
-  }
+                                      size_t &nonspace_bits_end,
+                                      uint64_t &nonspace_bits) {
   // fast path for single space
   if (!IsSpace(data[pos++])) return data[pos - 1];
   if (!IsSpace(data[pos++])) return data[pos - 1];
 
-  // current pos is out of block
-  while (1) {
-    uint64_t nonspace = GetNonSpaceBits(data + pos);
-    if (nonspace) {
-      size_t skip = TrailingZeroes(nonspace) >> 2;
-      pos += skip;
-      uint64_t shift = static_cast<uint64_t>(skip + 1) * 4ULL;
-      if (shift >= 64) {
-        next_nonspace = 0;
+  uint64_t nonspace;
+
+  // 1. 如果当前的 pos 已经超出了我们缓存的 16 字节块
+  if (pos >= nonspace_bits_end) {
+  found_space:
+    while (1) {
+      nonspace = GetNonSpaceBits(data + pos);
+      if (nonspace) {
+        // NEON 每次处理 16 字节
+        nonspace_bits_end = pos + 16;       
+        // 每 4 bits 代表 1 个 byte，所以要 >> 2
+        pos += TrailingZeroes(nonspace) >> 2; 
+        nonspace_bits = nonspace;
+        return data[pos++];
       } else {
-        next_nonspace = nonspace >> shift;
+        pos += 16;
       }
-      return data[pos++];
-    } else {
-      pos += 16;
     }
+    sonic_assert(false && "!should not happen");
   }
-  sonic_assert(false && "!should not happen");
+
+  // 2. 如果当前的 pos 还在缓存块内部 (Reuse 核心逻辑)
+  sonic_assert(pos + 16 > nonspace_bits_end);
+  size_t block_start = nonspace_bits_end - 16;
+  sonic_assert(pos >= block_start);
+  
+  // 计算当前 pos 在 block 内的字节偏移
+  size_t byte_pos = pos - block_start;
+  
+  // 转换为 bit 偏移 (因为 1 byte = 4 bits)
+  size_t bit_pos = byte_pos * 4;
+  
+  // 生成掩码，将当前 pos 之前的 bits 全部置 0
+  // 注意：因为 byte_pos 最大是 15，所以 bit_pos 最大是 60，这里 1ull << bit_pos 不会溢出 64 位
+  uint64_t mask = (1ull << bit_pos) - 1;
+  nonspace = nonspace_bits & (~mask);
+
+  if (nonspace == 0) {
+    // 缓存块剩下的部分全是空格，直接跳到块尾，继续搜索
+    pos = nonspace_bits_end;
+    goto found_space;
+  }
+
+  // 缓存块中还有非空字符，直接算出相对 block_start 的绝对偏移
+  pos = block_start + (TrailingZeroes(nonspace) >> 2);
+  return data[pos++];
 }
 
 }  // namespace neon
