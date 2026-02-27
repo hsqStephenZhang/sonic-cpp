@@ -40,7 +40,13 @@ sonic_force_inline bool SkipContainer(const uint8_t *data, size_t &pos,
 
 // TODO: optimize by removing bound checking.
 sonic_force_inline uint8_t skip_space(const uint8_t *data, size_t &pos,
-                                      size_t &, uint64_t &) {
+                                      size_t &, uint64_t &next_nonspace) {
+  if (next_nonspace) {
+    size_t skip = TrailingZeroes(next_nonspace) >> 2;
+    pos += skip;
+    next_nonspace >>= (skip + 1) * 4;
+    return data[pos++];
+  }
   // fast path for single space
   if (!IsSpace(data[pos++])) return data[pos - 1];
   if (!IsSpace(data[pos++])) return data[pos - 1];
@@ -49,7 +55,9 @@ sonic_force_inline uint8_t skip_space(const uint8_t *data, size_t &pos,
   while (1) {
     uint64_t nonspace = GetNonSpaceBits(data + pos);
     if (nonspace) {
-      pos += TrailingZeroes(nonspace) >> 2;
+      size_t skip = TrailingZeroes(nonspace) >> 2;
+      pos += skip;
+      next_nonspace = nonspace >> ((skip + 1) * 4);
       return data[pos++];
     } else {
       pos += 16;
