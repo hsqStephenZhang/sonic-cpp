@@ -34,8 +34,8 @@ using sonic_json::internal::common::handle_unicode_codepoint;
 
 struct StringBlock {
  public:
-  sonic_force_inline static StringBlock Find(const uint8_t *src);
-  sonic_force_inline static StringBlock Find(uint8x16_t &v);
+  sonic_force_inline static StringBlock Find(const uint8_t* src);
+  sonic_force_inline static StringBlock Find(uint8x16_t& v);
   sonic_force_inline bool HasQuoteFirst() const {
     return (((bs_bits - 1) & quote_bits) != 0) && !HasUnescaped();
   }
@@ -63,7 +63,7 @@ struct StringBlock {
   uint64_t unescaped_bits;
 };
 
-sonic_force_inline StringBlock StringBlock::Find(const uint8_t *src) {
+sonic_force_inline StringBlock StringBlock::Find(const uint8_t* src) {
   uint8x16_t v = vld1q_u8(src);
   return {
       to_bitmask(vceqq_u8(v, vdupq_n_u8('\\'))),
@@ -72,7 +72,7 @@ sonic_force_inline StringBlock StringBlock::Find(const uint8_t *src) {
   };
 }
 
-sonic_force_inline StringBlock StringBlock::Find(uint8x16_t &v) {
+sonic_force_inline StringBlock StringBlock::Find(uint8x16_t& v) {
   return {
       to_bitmask(vceqq_u8(v, vdupq_n_u8('\\'))),
       to_bitmask(vceqq_u8(v, vdupq_n_u8('"'))),
@@ -80,7 +80,7 @@ sonic_force_inline StringBlock StringBlock::Find(uint8x16_t &v) {
   };
 }
 
-sonic_force_inline uint8x16_t ChunkNonSpaceBit(const uint8_t *data) {
+sonic_force_inline uint8x16_t ChunkNonSpaceBit(const uint8_t* data) {
   uint8x16_t v = vld1q_u8(data);
   uint8x16_t m1 = vceqq_u8(v, vdupq_n_u8(' '));
   uint8x16_t m2 = vceqq_u8(v, vdupq_n_u8('\t'));
@@ -94,17 +94,16 @@ sonic_force_inline uint8x16_t ChunkNonSpaceBit(const uint8_t *data) {
   return m8;
 }
 
-sonic_force_inline uint64_t GetNonSpaceBits(const uint8_t *data) {
+sonic_force_inline uint64_t GetNonSpaceBits(const uint8_t* data) {
   return to_bitmask(ChunkNonSpaceBit(data));
 }
 
-sonic_force_inline uint64_t GetNonSpaceBits64Bit(const uint8_t *data) {
+sonic_force_inline uint64_t GetNonSpaceBits64Bit(const uint8_t* data) {
   uint8x16_t v1 = ChunkNonSpaceBit(data);
   uint8x16_t v2 = ChunkNonSpaceBit(data + 16);
   uint8x16_t v3 = ChunkNonSpaceBit(data + 32);
   uint8x16_t v4 = ChunkNonSpaceBit(data + 48);
-  return simd8x64<bool>(v1, v2, v3, v4)
-        .to_bitmask();
+  return simd8x64<bool>(v1, v2, v3, v4).to_bitmask();
 }
 
 }  // namespace neon
