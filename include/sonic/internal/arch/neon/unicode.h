@@ -80,7 +80,7 @@ sonic_force_inline StringBlock StringBlock::Find(uint8x16_t &v) {
   };
 }
 
-sonic_force_inline uint64_t GetNonSpaceBits(const uint8_t *data) {
+sonic_force_inline uint8x16_t ChunkNonSpaceBit(const uint8_t *data) {
   uint8x16_t v = vld1q_u8(data);
   uint8x16_t m1 = vceqq_u8(v, vdupq_n_u8(' '));
   uint8x16_t m2 = vceqq_u8(v, vdupq_n_u8('\t'));
@@ -91,8 +91,20 @@ sonic_force_inline uint64_t GetNonSpaceBits(const uint8_t *data) {
   uint8x16_t m6 = vorrq_u8(m3, m4);
   uint8x16_t m7 = vorrq_u8(m5, m6);
   uint8x16_t m8 = vmvnq_u8(m7);
+  return m8;
+}
 
-  return to_bitmask(m8);
+sonic_force_inline uint64_t GetNonSpaceBits(const uint8_t *data) {
+  return to_bitmask(ChunkNonSpaceBit(data));
+}
+
+sonic_force_inline uint64_t GetNonSpaceBits64Bit(const uint8_t *data) {
+  uint8x16_t v1 = ChunkNonSpaceBit(data);
+  uint8x16_t v2 = ChunkNonSpaceBit(data + 16);
+  uint8x16_t v3 = ChunkNonSpaceBit(data + 32);
+  uint8x16_t v4 = ChunkNonSpaceBit(data + 48);
+  return simd8x64<bool>(v1, v2, v3, v4)
+        .to_bitmask();
 }
 
 }  // namespace neon
